@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de Notícias</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .search-box {
+            background: white;
+            border-radius: 50px;
+            padding: 5px;
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        input {
+            flex: 1;
+            padding: 15px 25px;
+            border: none;
+            outline: none;
+            font-size: 1.1rem;
+            border-radius: 50px;
+        }
+        
+        button {
+            padding: 15px 40px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            background: #764ba2;
+            transform: scale(1.02);
+        }
+        
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2rem;
+            margin: 40px;
+        }
+        
+        .articles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+        }
+        
+        .article-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+        
+        .article-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .article-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: #f0f0f0;
+        }
+        
+        .article-content {
+            padding: 20px;
+        }
+        
+        .article-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .article-description {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+        
+        .article-meta {
+            font-size: 0.8rem;
+            color: #999;
+            margin-bottom: 15px;
+        }
+        
+        .read-more {
+            display: inline-block;
+            padding: 8px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .error {
+            background: #f44336;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .api-key-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .api-key-info input {
+            background: white;
+            border: 1px solid #ddd;
+            width: 300px;
+            margin: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .articles-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .search-box {
+                flex-direction: column;
+                border-radius: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📰 Buscador de Notícias</h1>
+            <p>Digite um termo e encontre as últimas notícias</p>
+        </div>
+        
+        <div class="api-key-info">
+            🔑 <strong>Precisa de uma chave da NewsAPI</strong><br>
+            <small>Cadastre-se grátis em <a href="https://newsapi.org/register" target="_blank">newsapi.org/register</a> (2 minutos)</small><br>
+            <input type="text" id="apiKey" placeholder="Cole sua API Key aqui" size="40">
+            <button onclick="saveApiKey()">Salvar</button>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Ex: Apple, Tecnologia, Futebol, Python..." 
+                   onkeypress="if(event.key === 'Enter') searchNews()">
+            <button onclick="searchNews()">🔍 Buscar</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+    
+    <script>
+        // Carregar API Key salva
+        if(localStorage.getItem('newsapi_key')) {
+            document.getElementById('apiKey').value = localStorage.getItem('newsapi_key');
+        }
+        
+        function saveApiKey() {
+            const key = document.getElementById('apiKey').value.trim();
+            if(key) {
+                localStorage.setItem('newsapi_key', key);
+                alert('✅ API Key salva com sucesso!');
+            }
+        }
+        
+        async function searchNews() {
+            const query = document.getElementById('searchInput').value.trim();
+            const apiKey = localStorage.getItem('newsapi_key');
+            
+            if (!query) {
+                alert('Digite um termo para buscar');
+                return;
+            }
+            
+            if (!apiKey) {
+                alert('⚠️ Primeiro cadastre sua API Key da NewsAPI (gratuito) no campo acima');
+                return;
+            }
+            
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="loading">🔍 Buscando notícias...</div>';
+            
+            // Calcular data de 30 dias atrás (limite da API gratuita)
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            
+            const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
+            const toDate = today.toISOString().split('T')[0];
+            
+            const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&from=${fromDate}&to=${toDate}&sortBy=publishedAt&pageSize=30&language=pt&apiKey=${apiKey}`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.status === 'error') {
+                    resultsDiv.innerHTML = `<div class="error">❌ ${data.message || 'Erro na API. Verifique sua chave.'}</div>`;
+                    return;
+                }
+                
+                if (data.totalResults === 0) {
+                    resultsDiv.innerHTML = '<div class="loading">😕 Nenhuma notícia encontrada</div>';
+                    return;
+                }
+                
+                let html = `<div class="results-info" style="background:white; padding:15px; border-radius:10px; margin-bottom:20px;">
+                            📊 ${data.totalResults} notícias encontradas para "${query}"
+                           </div>`;
+                html += '<div class="articles-grid">';
+                
+                data.articles.forEach(article => {
+                    const imageUrl = article.urlToImage || 'https://via.placeholder.com/400x200?text=Sem+Imagem';
+                    const publishedAt = new Date(article.publishedAt).toLocaleString('pt-BR');
+                    const source = article.source.name;
+                    const title = article.title || 'Sem título';
+                    const description = article.description || 'Sem descrição disponível';
+                    
+                    html += `
+                        <div class="article-card" onclick="window.open('${article.url}', '_blank')">
+                            <img class="article-image" src="${imageUrl}" alt="${title}"
+                                 onerror="this.src='https://via.placeholder.com/400x200?text=Imagem+Indisponível'">
+                            <div class="article-content">
+                                <div class="article-title">${escapeHtml(title)}</div>
+                                <div class="article-description">${escapeHtml(description.substring(0, 200))}...</div>
+                                <div class="article-meta">
+                                    📰 ${escapeHtml(source)} | 📅 ${publishedAt}
+                                </div>
+                                <span class="read-more">Ler artigo →</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ Erro: ${error.message}</div>`;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
